@@ -2,7 +2,7 @@ import sys, socketserver, socket
 
 PORT = 0
 key = ""
-command=""
+
 
 
 
@@ -36,7 +36,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 #self.request.sendall(bytearray(welcome, "UTF-8"))
 
 
-        nonlocal command
+
         command = data.decode("utf-8")
 
         if (command=="write"):
@@ -53,8 +53,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
 
         else:
-            sys.stderr("Invalid Command type Received")
-            sys.exit(1)
+            print("Invalid Command Type Received")
 
 
 
