@@ -1,4 +1,4 @@
-import sys, socketserver, socket, hashlib, binascii
+import sys, socketserver, socket, hashlib, binascii, time
 
 PORT = 0
 key = ""
@@ -56,6 +56,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			fileData = b''
 			
 			while 1:
+				sleep(0.35)
 				data = self.request.recv(self.FILE_BUFSIZE)
 				if data:
 					fileData += data
