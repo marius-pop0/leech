@@ -35,21 +35,26 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			fileData = b''
 			
 			while 1:
-				sleep(0.35) #needs changing
-				data = self.request.recv(self.FILE_BUFSIZE)
-				if data:
-					fileData += data
-					if len(data) < self.FILE_BUFSIZE:
-						break
-				else:
+				#receive chunk size
+				raw_size = self.request.recv(4)
+				size = int.from_bytes(raw_size, 'big')
+				
+				#receive chunk\
+				data = self.request.recv(size)
+				if not data:
 					break
-			#encrypt fileData here
+				#decrypt chunk here
+				fileData += data
+				if size < self.FILE_BUFSIZE:
+					break
 			try:
 				with open(filename, "wb") as f:
 					f.write(fileData)
 				print("file write success")
 			except:
 				print("file write failed")
+				#tell client that file write failed
+				self.request.sendall("no".encode("ascii"))
 				return 1
 				
 			print("ok")
