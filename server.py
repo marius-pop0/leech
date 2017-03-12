@@ -3,20 +3,6 @@ import sys, socketserver, socket, hashlib, binascii, time
 PORT = 0
 key = ""
 
-def receiveData(self, socket):
-	BUFFER_SIZE = 4096
-	incoming = self.request.recv(BUFFER_SIZE)
-	if len(incoming) == BUFFER_SIZE:
-		while 1:
-			try:  # error means no more data
-				incoming += self.request.recv(BUFFER_SIZE, socket.MSG_DONTWAIT)
-			except:
-				break
-		return incoming		   
-					
-
-
-
 class MyTCPHandler(socketserver.BaseRequestHandler):
 	BUFFER_SIZE = 4096
 	FILE_BUFSIZE = 4194304
@@ -28,25 +14,18 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 		#receiver cipher type and IV here
 		
 		#get the command
-		data = self.request.recv(self.BUFFER_SIZE)
-		if len(data) == self.BUFFER_SIZE:
-			while 1:
-				try:  # error means no more data
-					data += self.request.recv(self.BUFFER_SIZE, socket.MSG_DONTWAIT)
-				except:
-					break
+		data = self.request.recv(5)
 		
-		command = data.decode("ascii").strip('\n')
+		command = data.decode("ascii").strip('.')
 		
-		#both read and write need filename, so do it here
-		data = self.request.recv(self.BUFFER_SIZE)
-		if len(data) == self.BUFFER_SIZE:
-			while 1:
-				try:  # error means no more data
-					data += self.request.recv(self.BUFFER_SIZE, socket.MSG_DONTWAIT)
-				except:
-					break
-		filename = data.decode("ascii").strip('\n')
+		#get size of filename
+		raw_size = self.request.recv(4)
+		size = int.from_bytes(raw_size, 'big')
+		
+		#get filename
+		raw_name = self.request.recv(size)
+		filename = raw_name.decode("ascii")
+		
 		print("command: " + command) #log
 		
 		if (command == "write"):
@@ -56,7 +35,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			fileData = b''
 			
 			while 1:
-				sleep(0.35)
+				sleep(0.35) #needs changing
 				data = self.request.recv(self.FILE_BUFSIZE)
 				if data:
 					fileData += data
@@ -79,28 +58,22 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			
 		elif (command == "read"):
 			print("reading")
-			#read data from file
 			
 			try:
 				with open(filename, "rb") as f:
 					readData = f.read()
+				#send filesize to client first
+				size = len(readData)
+				self.request.sendall(size.to_bytes(4, 'big'))
+				
+				self.request.sendall(readData)
+				
 				logOutput = readData.decode("ascii")
 				print(logOutput)
 			except:
 				print ("error reading file")
-				self.request.sendall(b"DNE")
-
+				self.request.sendall("DNE".endcode("ascii"))
 			
-			#calculate SHA-1 hash for file
-			m = hashlib.sha224()
-			m.update(readData)
-			hash = m.digest()
-			
-			print(binascii.hexlify(hash))
-			
-			#send file and hash back to client
-			self.request.sendall(readData)
-			self.request.sendall(hash)
 			
 		else:
 			print("Invalid Command Type Received: " + command)
