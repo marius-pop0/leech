@@ -2,14 +2,12 @@ import base64
 from Crypto.Cipher import AES
 from Crypto import Random
 
-BLOCK_SIZE=0
-
-
 
 class AESCipher:
     def __init__( self, key ,blockSize):
         self.key = key
         self.blockSize = blockSize
+        #Block size will be either 16 or 31 according to AES128 or AES256 respectively
 
     def createIV(self):
         return Random.new().read(self.blockSize)
