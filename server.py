@@ -1,7 +1,11 @@
-import sys, socketserver, socket, hashlib, binascii, time
+import sys, socketserver, socket, pickle, cryptoUtils, random, string
 
 PORT = 0
 key = ""
+IV=None   
+					
+
+
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
 	BUFFER_SIZE = 4096
@@ -14,39 +18,91 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 		#receiver cipher type and IV here
 		
 		#get the command
-		data = self.request.recv(5)
-		
-		command = data.decode("ascii").strip('.')
+
+		data = self.request.recv(self.BUFFER_SIZE)
+
+		l = pickle.loads(data)
+		type = l[0]
+		IV=b''
+		if(len(l)==2):
+			IV=l[1]
+
+		#AES256
+		blockSize = -1
+		if(type=="aes256"):
+			print("client using AES256")
+			blockSize = 32
+			crypto = cryptoUtils.AESCipher(key, blockSize)
+		#AES128
+		elif(type=="aes128"):
+			print("client using AES128")
+			blockSize = 16
+			crypto = cryptoUtils.AESCipher(key, blockSize)
+		#None
+		else:
+			print("client using None")
+			blockSize = 0
+			crypto = cryptoUtils.AESCipher(key, blockSize)
+
+		#get command type (read/write)
+		if blockSize != 0:
+			data = self.request.recv(blockSize)
+		else:
+			data = self.request.recv(5)
+
+		try:
+			command = crypto.decrypt(data,IV)
+		except:
+			print("Incorrect client key")
+		command = command.decode("ascii").strip('.')
+		print("command: " + command) #log
 		
 		#get size of filename
-		raw_size = self.request.recv(4)
+		if blockSize != 0:
+			raw_size = self.request.recv(blockSize)
+		else:
+			raw_size = self.request.recv(4)
+		raw_size = crypto.decrypt(raw_size, IV)
 		size = int.from_bytes(raw_size, 'big')
 		
 		#get filename
 		raw_name = self.request.recv(size)
+		raw_name = crypto.decrypt(raw_name, IV)
 		filename = raw_name.decode("ascii")
-		
-		print("command: " + command) #log
+		print("filename: " + filename)
+
+		#filename = data.decode("ascii").strip('\n')
 		
 		if (command == "write"):
-			print("Writing")
-			
+			print("Listening")
 			#receive file
 			fileData = b''
 			
 			while 1:
+				print("started")
 				#receive chunk size
-				raw_size = self.request.recv(4)
+				if blockSize != 0:
+
+					raw_size = self.request.recv(blockSize)
+				else:
+					raw_size = self.request.recv(4)
+
+				raw_size = crypto.decrypt(raw_size,IV)
 				size = int.from_bytes(raw_size, 'big')
-				
+
 				#receive chunk\
-				data = self.request.recv(size)
-				if not data:
-					break
+				data = b''
+				while len(data) < size:
+					data += self.request.recv(size)
+				
 				#decrypt chunk here
+				data = crypto.decrypt(data,IV)
+
 				fileData += data
+				
 				if size < self.FILE_BUFSIZE:
 					break
+				
 			try:
 				with open(filename, "wb") as f:
 					f.write(fileData)
@@ -54,43 +110,43 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			except:
 				print("file write failed")
 				#tell client that file write failed
-				self.request.sendall("no".encode("ascii"))
+				self.request.sendall(crypto.encrypt("no".encode("ascii"), IV))
 				return 1
 				
 			print("ok")
 			#send acknowledgement back to client
-			self.request.sendall("ok".encode("ascii"))
+			self.request.sendall(crypto.encrypt("ok".encode("ascii"), IV))
 			
 		elif (command == "read"):
-			print("reading")
+			print("Sending")
 			
 			try:
 				with open(filename, "rb") as f:
 					readData = f.read()
 				#send filesize to client first
-				size = len(readData)
-				self.request.sendall(size.to_bytes(4, 'big'))
+				ciphertext = crypto.encrypt(readData,IV)
+				size = len(ciphertext)
+
+				self.request.sendall(crypto.encrypt(size.to_bytes(4, 'big'),IV))
 				
-				self.request.sendall(readData)
-				
-				logOutput = readData.decode("ascii")
-				print(logOutput)
+				self.request.sendall(ciphertext)
 			except:
 				print ("error reading file")
-				self.request.sendall("DNE".endcode("ascii"))
+				self.request.sendall(crypto.encrypt("DNE".encode("ascii"),IV))
 			
 			
 		else:
 			print("Invalid Command Type Received: " + command)
 		self.request.close()
 		print("closing connection")
-		
 
 		
-#arguents: python3 server.py port [key]
+#arguents: python2.7 server.py port [key]
 if __name__ == '__main__':
 	if len(sys.argv) == 2:
 		PORT = int(sys.argv[1])
+		key = ''.join(random.SystemRandom().choice(string.ascii_uppercase+string.ascii_lowercase + string.digits) for _ in range(32))
+		print("Auto generated key: " + key)
 	elif len(sys.argv) == 3:
 		PORT = int(sys.argv[1])
 		key = sys.argv[2]
