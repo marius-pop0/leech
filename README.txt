@@ -28,7 +28,7 @@ Protocol Description
 
 	On Write:
 
-	6. The client encrypts sends the size of each chuck being sent - We set the chunk size to _____________
+	6. The client encrypts sends the size of each chuck being sent - We set the chunk size to 4Mb
 	7. The client encrypts and sends the chunk
 	**Repeat step 6 and 7 untill the entire file is transfered
 	8. The server will encrypt and send "ok" on success
@@ -53,4 +53,3 @@ Testing with Checksum
 
 Timing
 
-	
