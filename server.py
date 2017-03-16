@@ -15,6 +15,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 		hostname = self.request.getsockname()
 		peername = self.request.getpeername()
 		print("new connection from " + hostname[0] + " from port " + str(peername[1]))
+
 		#receiver cipher type and IV here
 		
 		#get the command
@@ -30,7 +31,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 		#AES256
 		blockSize = -1
 		if(type=="aes256"):
-			print("client using AES256")
+			print("client using AES256: " +key)
 			blockSize = 32
 			crypto = cryptoUtils.AESCipher(key, blockSize)
 		#AES128
@@ -77,36 +78,50 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			print("Listening")
 			#receive file
 			fileData = b''
-			
-			while 1:
-				print("started")
-				#receive chunk size
-				if blockSize != 0:
-
-					raw_size = self.request.recv(blockSize)
-				else:
-					raw_size = self.request.recv(4)
-
-				raw_size = crypto.decrypt(raw_size,IV)
-				size = int.from_bytes(raw_size, 'big')
-
-				#receive chunk\
-				data = b''
-				while len(data) < size:
-					data += self.request.recv(size)
-				
-				#decrypt chunk here
-				data = crypto.decrypt(data,IV)
-
-				fileData += data
-				
-				if size < self.FILE_BUFSIZE:
-					break
-				
 			try:
 				with open(filename, "wb") as f:
-					f.write(fileData)
+					while 1:
+						
+						#print("Started")
+						#receive chunk size
+						if blockSize != 0:
+							raw_size = self.request.recv(blockSize)
+							if not raw_size:
+								break
+						else:
+							#print("get size")
+							raw_size = self.request.recv(4)
+							if not raw_size:
+								break
+							#print("got size")
+						
+						raw_size = crypto.decrypt(raw_size,IV)
+						if raw_size.decode("ascii") == "0":
+							#print("done")
+							break
+						#print("decrypted")
+						size = int.from_bytes(raw_size, 'big')
+						
+						#print("begin receive")
+						#receive chunk\
+						data = b''
+						while len(data) < size:
+							data += self.request.recv(size - len(data))
+						
+						#print("received chunk")
+						
+						#decrypt chunk here
+						data = crypto.decrypt(data,IV)
+							
+						#print("appending")
+						f.write(data)
+							
+						#print("wrote chunk")
+						if size < self.FILE_BUFSIZE:
+							break
 				print("file write success")
+				
+			
 			except:
 				print("file write failed")
 				#tell client that file write failed
@@ -137,6 +152,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			
 		else:
 			print("Invalid Command Type Received: " + command)
+		IV = None
+		crypto = None
 		self.request.close()
 		print("closing connection")
 

@@ -1,4 +1,4 @@
-import sys, socket, cryptoUtils, pickle
+import sys, socket, cryptoUtils, pickle, time
 
 command = ""
 filename = ""
@@ -11,17 +11,20 @@ blockSize = -1
 
 
 def write():
+
 	BUFFER_SIZE = 4194304
 	#print("writing")
-
-	encryptAndSend(crypto, "write".encode("ascii"), IV)	
+	time.sleep(0.35)
+	encryptAndSend(crypto, "write".encode("ascii"), IV)
 
 	raw_name = filename.encode("ascii")
 	cipher_name = crypto.encrypt(raw_name, IV)
 	# send the filename size
 	name_len = len(cipher_name)
 	
+
 	encryptAndSend(crypto, name_len.to_bytes(4, 'big'), IV)
+	time.sleep(0.35)
 	s.sendall(cipher_name)
 	#print("filename sent")
 
@@ -44,8 +47,10 @@ def write():
 
 		# send chunk
 		s.sendall(cipher)
+		#print("sent block")
 
-
+	#print("done sending")
+	s.sendall("0".encode("ascii"))
 	global blockSize
 	# wait for server acknowledgement for file write
 	if blockSize != 0:
@@ -58,7 +63,7 @@ def write():
 		#print("OK")
 		pass
 	elif response == "no":
-		print("File write failed")
+		print("Insufficient space on server")
 	else:
 		print("unknown response from server")
 
@@ -68,6 +73,7 @@ def write():
 def read():
 	#print("reading")
 	#command
+	time.sleep(0.35)
 	encryptAndSend(crypto, "read.".encode("ascii"), IV)
 
 	raw_name = filename.encode("ascii")
@@ -162,6 +168,7 @@ if __name__ == '__main__':
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a socket object
 
 	s.connect((host, port))
+
 
 	if (cipher == "aes256"):
 		global blockSize
